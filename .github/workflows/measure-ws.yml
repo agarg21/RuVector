@@ -1,0 +1,47 @@
+name: Measure Workspace tests
+'on':
+  workflow_dispatch: {}
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+jobs:
+  test:
+    name: Tests (${{ matrix.name }})
+    runs-on: ${{ matrix.name == 'core-and-rest' && 'ubuntu-24.04' || 'ubuntu-22.04' }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: ml-research-heavy
+          packages: -p ruvector-attention -p ruvector-mincut -p ruvector-fpga-transformer -p ruvector-graph-transformer
+        - name: core-and-rest-wasm
+          packages: -p neural-trader-wasm -p ruvector-acorn-wasm -p ruvector-attention-unified-wasm -p ruvector-attention-wasm -p ruvector-cnn-wasm -p ruvector-consciousness-wasm -p ruvector-dag-wasm -p
+            ruvector-decompiler-wasm -p ruvector-delta-wasm -p ruvector-domain-expansion-wasm -p ruvector-economy-wasm -p ruvector-exotic-wasm -p ruvector-fpga-transformer-wasm -p ruvector-gnn-wasm -p ruvector-graph-condense-wasm
+            -p ruvector-graph-transformer-wasm -p ruvector-graph-wasm -p ruvector-learning-wasm -p ruvector-math-wasm -p ruvector-mincut-gated-transformer-wasm -p ruvector-mincut-wasm -p ruvector-nervous-system-wasm
+            -p ruvector-rabitq-wasm -p ruvector-router-wasm -p ruvector-solver-wasm -p ruvector-sparsifier-wasm -p ruvector-tiny-dancer-wasm -p ruvector-verified-wasm -p ruvector-wasm
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        submodules: recursive
+    - name: Install system dependencies
+      run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+    - name: Cache Rust
+      uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      with:
+        key: test-${{ matrix.name }}
+        save-if: false
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60
+      with:
+        tool: cargo-nextest
+    - name: Run tests (${{ matrix.name }})
+      run: cargo nextest run --no-fail-fast ${{ matrix.packages }}
+    - name: Run timesfm tests (candle feature, research-nightly only)
+      if: matrix.name == 'research-nightly'
+      run: cargo nextest run --no-fail-fast -p timesfm --features candle
+    - name: Run doctests (${{ matrix.name }})
+      run: cargo test --doc ${{ matrix.packages }}
